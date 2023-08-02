@@ -1,4 +1,4 @@
-name: Build media ffmpeg extension 
+name: Build media extensions
 
 on:
   push:
@@ -7,6 +7,8 @@ on:
       - '*.md'
 env:
   NDK_VER: 21.4.7075529
+  MEDIA_ROOT: ${{ github.workspace }}/media
+  FFMPEG_ROOT: ${{ github.workspace }}/ffmpeg
 
 jobs:
   build:
@@ -42,12 +44,20 @@ jobs:
       - name: Install NDK
         # https://github.com/android/ndk/wiki/Unsupported-Downloads
         run: sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;$NDK_VER"
-        
+          
+      - name: Build av1
+        run: |
+          AV1_MODULE_PATH="${MEDIA_ROOT}/libraries/decoder_av1/src/main"
+          cd "${AV1_MODULE_PATH}/jni" && git clone https://github.com/google/cpu_features
+          cd "${AV1_MODULE_PATH}/jni" && git clone https://chromium.googlesource.com/codecs/libgav1
+          cd "${AV1_MODULE_PATH}/jni/libgav1" && git clone https://github.com/abseil/abseil-cpp.git third_party/abseil-cpp
+          cd $MEDIA_ROOT
+          ./gradlew lib-decoder-av1:build
+          mv libraries/decoder_av1/buildout/outputs/aar/*.aar $GITHUB_WORKSPACE/builds
+
       - name: Build ffmpeg
         run: |
           export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VER
-          export MEDIA_ROOT="${PWD}/media"
-          export FFMPEG_ROOT="${PWD}/ffmpeg"
           export FFMPEG_EXT_PATH="${MEDIA_ROOT}/libraries/decoder_ffmpeg/src/main"
           export ENABLED_DECODERS=(flac alac pcm_mulaw pcm_alaw mp3 aac ac3 eac3 dca mlp truehd)
           
@@ -58,7 +68,7 @@ jobs:
 
       - name: Build media extension
         run: |
-          cd media
+          cd $MEDIA_ROOT
           ./gradlew lib-decoder-ffmpeg:build
           mv libraries/decoder_ffmpeg/buildout/outputs/aar/*.aar $GITHUB_WORKSPACE/builds
 
